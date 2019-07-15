@@ -3,7 +3,6 @@ package com.locydragon.test1;
 import javassist.*;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
@@ -33,7 +32,12 @@ public class CoreInject {
 						String pathUtf = URLDecoder.decode(path.toFile().getPath(), "utf-8");
                         //路径转码 避免路径有中文而乱码报错
 						pool.insertClassPath(pathUtf);
-						//把核心导入ClassPool
+						pool.importPackage("java.lang.reflect.Field");
+						pool.importPackage("java.lang.reflect.Method");
+						pool.importPackage("org.bukkit.Bukkit");
+						pool.importPackage("org.bukkit.entity.Player");
+						pool.importPackage("org.bukkit.plugin.java.JavaPlugin");
+						//导入类~
 						CtClass ctClass = pool.getCtClass(className.replace("/", "."));
 						//获取CraftPlayer类
 						CtMethod sendMsgMethod = ctClass.getDeclaredMethod("sendMessage", new CtClass[]{ pool.getCtClass("java.lang.String") });
@@ -46,19 +50,27 @@ public class CoreInject {
 						//创建新的方法，复制原来的方法
 						StringBuilder code = new StringBuilder();
 						//使用一个StringBuilder来储存源码
+						//下面就开始写注入的代码了
 						code.append("{\n");
-						code.append("if (message.trim().equalsIgnoreCase(\"HelloWorld\")) { \n message = \"ByeWorld\"; \n} \n");
+						code.append("try {");
+						code.append("JavaPlugin plugin = Bukkit.getPluginManager().getPlugin(\"TestPlugin\");");
+						code.append("Method method = plugin.getClass().getMethod(\"onCall\", new Class[] {Player.class, String.class});");
+						code.append("method.invoke(null, new Object[]{(Player)this, $1});");
+						code.append("} catch (Exception e) {}");
+						//$1就是第一个参数的意思，这里就是sendMessage发送的信息.
 						code.append("}\n");
 						newMethod.insertBefore(code.toString());
 						ctClass.addMethod(newMethod);
 						return ctClass.toBytecode();
+						//返回字节码
 					} catch (ClassNotFoundException | NotFoundException | CannotCompileException | IOException exc) {
 						exc.printStackTrace();
 					}
 				}
 				return null;
-				//需要return一个字节码，byte[]类型，如果没有要返回的请返回null.
+				//需要return一个字节码对象，byte[]类型，如果没有要返回的请返回null.
 			}
 		});
 	}
+
 }
